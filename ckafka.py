@@ -4,7 +4,7 @@ from kafka.admin.acl_resource import ACLOperation, ACLPermissionType, ACLFilter,
 from kafka.admin.config_resource import ConfigResource, ConfigResourceType
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP as PKCS
-from Crypto.Cipher import AES
+from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 import Crypto.Util.Padding as Padding
 import Crypto.Util.number
@@ -14,10 +14,6 @@ import os
 
 import socket
 import ssl
-
-import logging
-logger = logging.getLogger('ckafka')
-logger.setLevel(logging.DEBUG)
 
 KAFKA_CONFIG = {
 	'bootstrap_servers': ['kafkaproject.ddns.net:9091', 'lmn806.ddns.net:9091'],
@@ -70,7 +66,7 @@ class KafkaClient:
 		self.consumer = KafkaConsumer(username,
 		        sasl_plain_username = username,
 			sasl_plain_password = password,
-			group_id='privateConsumer',
+			group_id=None,
 		        **KAFKA_CONFIG,
 		)
 
@@ -97,21 +93,15 @@ class KafkaClient:
 
 		return plain_message.decode()
 
-	def encryptMessage(self, message):
+	def encryptMessage(self, message, public_key):
 		iv = os.urandom(16)
-		key = os.urandom(32)
+		message_key = os.urandom(32)
 
-		cipher = AES.new(key, AES.MODE_CBC, iv=iv)
+		cipher = AES.new(message_key, AES.MODE_CBC, iv=iv)
 		encryptedMessage = cipher.encrypt(Padding.pad(message.encode(), 32))
 
-		encryptedKey = PKCS.new(self.rsa_key, hashAlgo=SHA256).encrypt(key)
+		encryptedKey = PKCS.new(public_key, hashAlgo=SHA256).encrypt(message_key)
 
 		encodedChunks =  list(map(base64.b64encode, [iv, encryptedKey, encryptedMessage]))
 
 		return b'$$'.join(encodedChunks)
-
-
-if __name__ == '__main__':
-	admin = KafkaAdmin()
-	print(admin.listTopics())
-	# print(admin.createUser('pytness', 'Ab321321'))
