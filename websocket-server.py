@@ -70,7 +70,19 @@ class Client:
 			message = await event_loop.run_in_executor(None, self.read_next_message)
 
 			if message != None:
-				await self.sendChatMessage(message)
+				try:
+					data = json.loads(message)
+					await self.sendChatMessage(message)
+
+					self.addToChatHistory(
+						data.get('source'),
+						data.get('plain'),
+						data.get('timestamp'),
+						False
+					)
+
+				except Exception as e:
+					pass
 
 	def read_next_message(self):
 		encrypted_message = self.kafka.next()
@@ -105,14 +117,18 @@ class Client:
 						contact_key = contact.get('key')
 						contact_key = RSA.importKey(base64.b64decode(contact_key))
 
+						timestamp = int(time.time() * 1000)
+
 						message_packet = json.dumps({
 							'source': self.username,
 							'plain': text,
-							'timestamp': int(time.time() * 1000)
+							'timestamp': timestamp
 						})
 
 						self.kafka.producer.send(to, value=self.kafka.encryptMessage(message_packet, contact_key))
 						self.kafka.producer.flush()
+
+						self.addToChatHistory(to, text, timestamp, True)
 
 						break
 
@@ -127,6 +143,24 @@ class Client:
 			"type": "chat-message",
 			"message": message,
 		}))
+
+	def addToChatHistory(self, contact, text, timestamp, sended):
+		query = Query().username == self.username
+
+		user_object = users_db.get(query)
+		chat_history = user_object.get('chat_history')
+
+		chat = chat_history.get(contact, [])
+		chat.append({
+			'text': text,
+			'timestamp': timestamp,
+			'sended': sended
+		})
+
+		chat_history.update({contact: chat})
+		user_object.update({'chat_history': chat_history})
+
+		users_db.update(user_object, query)
 
 	async def close():
 		await self.socket.close()

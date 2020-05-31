@@ -83,7 +83,7 @@ def register():
 		"username": username,
 		"private_key": private_key,
 		"contacts": [],
-		"chat_history": [],
+		"chat_history": {},
 	})
 
 	public_key = raw_key.publickey().exportKey(format="DER")
@@ -155,9 +155,9 @@ def get_keys():
 	if not currentUser:
 		return error('Invalid token')
 
-	user_object = users_db.get(Query().username == currentUser)
+	# user_object = users_db.get(Query().username == currentUser)
 
-	return success(user_object.get('chat_history'))
+	return success(None)
 
 @app.route('/get/chat-history', methods=['get'])
 def get_chat_history():
